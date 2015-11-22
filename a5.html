@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<html>
+	<head>
+		<!--<meta charset="utf-8">-->
+		<title>a5</title>
+		<style>
+			body { margin: 0; }
+			canvas { width: 100%; height: 100%; color: #000}
+			canvas.hidden {width: 100%; height: 100%; display: none}
+		</style>
+		
+		<script src="resources/webgl-utils.js"></script>
+		<script src="resources/gl-matrix.js"></script>
+		<script src="resources/chroma.js"></script>
+		<script src="resources/Stats.js"></script>
+	</head>
+	<body>
+		<canvas id="webgl"></canvas>
+		<canvas id="getPixel" class="hidden"></canvas>
+		<script data-main="js/a5" type="text/javascript" src="resources/require.js"></script>
+	</body>
+</html>
