@@ -15,23 +15,18 @@
  */
 
 import loader = require('./loader');
-var keypressedOrNot = false;
+var funcKeyPressed = undefined;
 var keypressed = undefined;
 var mouseclicked = undefined;
 var leftBorder = 0.0625;
 var rightBorder = 0.9383;
-var canvasSpacing = (rightBorder - leftBorder) / 12;
+var blocks = 13;
+var canvasSpacing = (rightBorder - leftBorder) / 13;
+var letterTexture = [];
+var maximumLetter = 14;
 ////////////////////////////////////////////////////////////////////////////////////////////
 // stats module by mrdoob (https://github.com/mrdoob/stats.js) to show the performance 
 // of your graphics
-var stats = new Stats();
-stats.setMode( 1 ); // 0: fps, 1: ms, 2: mb
-
-stats.domElement.style.position = 'absolute';
-stats.domElement.style.right = '0px';
-stats.domElement.style.top = '0px';
-
-document.body.appendChild( stats.domElement );
 
 ////////////////////////////////////////////////////////////////////////////////////////////
 // utilities
@@ -111,10 +106,22 @@ canvas.onmousedown = (ev: MouseEvent) => {
 }
 
 
-document.onkeydown = (event: KeyboardEvent) => {
+document.onkeypress = (event: KeyboardEvent) => {
+  var sound = new Howl({
+    urls: ['sounds/type.wav']
+  }).play();
   keypressed = event.keyCode;
+  if (event.keyCode == 32) {
+    event.preventDefault();
+  }
 }
 
+document.onkeydown = (event: KeyboardEvent) => {
+  if (event.keyCode == 8 || event.keyCode == 27) {
+    funcKeyPressed = event.keyCode;
+    event.preventDefault();
+  }
+}
 ////////////////////////////////////////////////////////////////////////////////////////////
 // start things off by calling initWebGL
 initWebGL();
@@ -125,20 +132,34 @@ function initWebGL() {
   if (!gl) {
     return;  // no webgl!  Bye bye
   }
-
+  for (var ii = 0; ii < 90; ii++) {
+    var myimg = new Image();
+    letterTexture.push(myimg);
+  }
   // turn on backface culling and zbuffering
   //gl.enable(gl.CULL_FACE);
   gl.enable(gl.DEPTH_TEST);
-
   // attempt to download and set up our GLSL shaders.  When they download, processed to the next step
   // of our program, the "main" routing
   // 
   // YOU SHOULD MODIFY THIS TO DOWNLOAD ALL YOUR SHADERS and set up all four SHADER PROGRAMS,
   // THEN PASS AN ARRAY OF PROGRAMS TO main().  You'll have to do other things in main to deal
   // with multiple shaders and switch between them
-  loader.loadFiles(['shaders/a3-shader.vert', 'shaders/a3-shader.frag'], function (shaderText) {
-    var program = createProgramFromSources(gl, shaderText);
-    main(gl, program);
+  loader.loadFiles(['shaders/a3-shader.vert.c', 'shaders/a3-shader.frag.c',
+                    'shaders/a3-shader-line.vert', 'shaders/a3-shader-line.frag'], function (shaderText) {
+    var program = createProgramFromSources(gl, [shaderText[0], shaderText[1]]);
+    var lineprogram = createProgramFromSources(gl, [shaderText[2], shaderText[3]]);
+    for (var ii = 0; ii < 90; ii++) {
+      var tempImg = new Image();
+      tempImg.onload = (function(value) {
+        return function() {
+          letterTexture[value].src = this.src;
+        }
+      })(ii);
+      var filename = "char" + (ii + 33).toString() + ".jpg";
+      tempImg.src = "letterTexture/" + filename;
+    }
+    main(gl, program, lineprogram);
   }, function (url) {
       alert('Shader failed to download "' + url + '"');
   }); 
@@ -146,7 +167,7 @@ function initWebGL() {
 
 ////////////////////////////////////////////////////////////////////////////////////////////
 // webGL is set up, and our Shader program has been created.  Finish setting up our webGL application       
-function main(gl: WebGLRenderingContext, program: WebGLProgram) {
+function main(gl: WebGLRenderingContext, program: WebGLProgram, lineprogram: WebGLProgram) {
   
   // use the webgl-utils library to create setters for all the uniforms and attributes in our shaders.
   // It enumerates all of the uniforms and attributes in the program, and creates utility functions to 
@@ -159,15 +180,16 @@ function main(gl: WebGLRenderingContext, program: WebGLProgram) {
   var arrays = generateArrays(2);
   var scaleFactor = 10;
   var center = vec4.fromValues(70 * scaleFactor,0,0,0);
-  
+  var lineArrays = {position: { numComponents: 3, data: [0, 1, 0, 0, -1, 0]},
+                indices: {numComponents: 1, data: [0, 1]}};
   var bufferInfo = createBufferInfoFromArrays(gl, arrays);
-
+  var lineBufferInfo = createBufferInfoFromArrays(gl, lineArrays);
   var cameraAngleRadians = degToRad(0);
   var fieldOfViewRadians = degToRad(60);
   var cameraHeight = 50;
 
   var uniformsThatAreTheSameForAllObjects = {
-    u_lightWorldPos:         [50, 30, -100],
+    u_lightWorldPos:         [0, 0, -200],
     u_viewInverse:           mat4.create(),
     u_lightColor:            [1, 1, 1, 1],
     u_ambient:               [0.1, 0.1, 0.1, 0.1]
@@ -178,6 +200,13 @@ function main(gl: WebGLRenderingContext, program: WebGLProgram) {
     u_world:                 mat4.create(),
     u_worldInverseTranspose: mat4.create(),
   };
+  
+  var uniformsForLine = {
+    u_worldViewProjection:   mat4.create(),
+    u_colorMult: [0,0,0,1],
+    u_centerx: vec4.create(),
+    u_heightCut: 0.0
+  }
 
   // var texture = .... create a texture of some form
 
@@ -218,6 +247,13 @@ function main(gl: WebGLRenderingContext, program: WebGLProgram) {
   var invMatrix = mat4.create();
   var axisVector = vec3.create();
   requestAnimationFrame(drawScene);
+  
+  var loaded = true;
+  for (var ii = 0; ii < 90; ii++) {
+    if (!letterTexture[ii].complete) {
+      loaded = false;
+    }
+  }
 
   // Draw the scene.
   function drawScene(time: number) {
@@ -228,7 +264,6 @@ function main(gl: WebGLRenderingContext, program: WebGLProgram) {
     time *= 0.001; 
    
     // measure time taken for the little stats meter
-    stats.begin();
 
     // if the window changed size, reset the WebGL canvas size to match.  The displayed size of the canvas
     // (determined by window size, layout, and your CSS) is separate from the size of the WebGL render buffers, 
@@ -259,7 +294,8 @@ function main(gl: WebGLRenderingContext, program: WebGLProgram) {
     
     // tell WebGL to use our shader program (will need to change this)
     gl.useProgram(program);
-    
+    uniformSetters = createUniformSetters(gl, program);
+    attribSetters  = createAttributeSetters(gl, program);
     // Setup all the needed attributes and buffers.  
     setBuffersAndAttributes(gl, attribSetters, bufferInfo);
 
@@ -275,12 +311,9 @@ function main(gl: WebGLRenderingContext, program: WebGLProgram) {
     // console.log(rotationMatrix);
     //mat4.translate(matrix, matrix, [-center[0] * scaleFactor, -center[1] * scaleFactor, -center[2] * scaleFactor]);
     if (keypressed) {
-      if (keypressed == 27) {
-        letterParams = [];
-      } else {
       //beginning = beginning % letterParams.length;
         var adder = {
-          height: rand(-200, 200),
+          height: rand(-300,300),
           u_colorMult: chroma.hsv(rand(baseColor, baseColor + 120), 0.5, 1).gl(),
           time: 0.0,
           rotationMatrixZ: mat4.create(),
@@ -289,21 +322,37 @@ function main(gl: WebGLRenderingContext, program: WebGLProgram) {
           renderOrNot: true,
           spinning: false,
           spinSpeed: 0.0,
-          accel: 0.0
+          accel: 0.0,
+          letterInd: keypressed,
+          linetop: undefined
         }
         if (keypressed == 32) {
           adder.renderOrNot = false;
         } else {
-          var rotateZAng = degToRad(rand(-60, 60));
+          var rotateZAng = degToRad(rand(-15,15));
+          adder.linetop = ((- adder.height * 0.4 + 320) - Math.cos(rotateZAng) * 36) / 640;
           var zAxis = vec3.transformMat4(axisVector, vec3.fromValues(0,0,1), mat4.create());
           mat4.rotate(adder.rotationMatrixZ, mat4.create(), rotateZAng, zAxis);
+          
+        }
+        if (letterParams.length >= maximumLetter) {
+          letterParams.shift();
         }
         letterParams.push(adder);
+        blocks = Math.max(13, letterParams.length);
+        canvasSpacing = (rightBorder - leftBorder) / blocks;
         keypressed = undefined;
+    }
+    if (funcKeyPressed) {
+      if (funcKeyPressed == 27) {
+        letterParams = [];
+      } else if (funcKeyPressed == 8) {
+        letterParams.pop();
       }
+      funcKeyPressed = undefined;
     }
     // // Set the uniforms we just computed
-    var spacing = 140 / Math.max(12, letterParams.length - 1);
+    var spacing = 140 / Math.max(blocks, letterParams.length - 1);
     for (var ii = 0; ii < letterParams.length; ii++) {
       if (letterParams[ii].renderOrNot) {
         mat4.copy(matrix, letterParams[ii].rotationMatrixY);
@@ -313,7 +362,6 @@ function main(gl: WebGLRenderingContext, program: WebGLProgram) {
             var yAxis = vec3.transformMat4(axisVector, vec3.fromValues(0,1,0), mat4.create());
             //mat4.invert(matrix, matrix);
             mat4.rotate(matrix, matrix, degToRad(letterParams[ii].spinSpeed), yAxis);
-            console.log(letterParams[ii].spinSpeed, letterParams[ii].accel);
             letterParams[ii].spinSpeed = letterParams[ii].spinSpeed - letterParams[ii].accel;
           } else {
             letterParams[ii].time = 0.0;
@@ -345,6 +393,14 @@ function main(gl: WebGLRenderingContext, program: WebGLProgram) {
         objectState.materialUniforms.u_heightPos = vec4.fromValues(0, letterParams[ii].height, 0, 0);
         objectState.materialUniforms.u_colorMult = letterParams[ii].u_colorMult;
         setUniforms(uniformSetters, objectState.materialUniforms);
+        var texture = gl.createTexture();
+        gl.bindTexture(gl.TEXTURE_2D, texture);
+      
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+        gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, letterTexture[letterParams[ii].letterInd - 33]);
         // Draw the geometry.   Everything is keyed to the ""
         gl.drawElements(gl.TRIANGLES, bufferInfo.numElements, gl.UNSIGNED_SHORT, 0);
       }
@@ -367,19 +423,32 @@ function main(gl: WebGLRenderingContext, program: WebGLProgram) {
             if (!letterParams[clickedletter].spinning) {
               letterParams[clickedletter].spinning = true;
               letterParams[clickedletter].time = 0.0;
-              console.log((Math.floor(distToCen / (canvasSpacing * 0.5 * canvas.width * 0.25)) + 1));
               letterParams[clickedletter].accel = (Math.floor(distToCen / (canvasSpacing * 0.5 * canvas.width * 0.25)) + 1) * 360 * 2 / 36.0 / 36.0;
               letterParams[clickedletter].spinSpeed = letterParams[clickedletter].accel * 36.0;
+              var sound = new Howl({
+                urls: ['sounds/coins.wav']
+              }).play();
             }
-          } else {
-            console.log("sure");
           }
         }
       }
       mouseclicked = undefined;
     }
-    // stats meter
-    stats.end();
+    
+    gl.useProgram(lineprogram);
+    uniformSetters = createUniformSetters(gl, lineprogram);
+    attribSetters  = createAttributeSetters(gl, lineprogram);
+    for (var ii = 0; ii < letterParams.length; ii++) {
+      if (letterParams[ii].renderOrNot) {
+        var centerx = -((letterParams.length - 1) * canvasSpacing * 2 / 2) + ii * canvasSpacing * 2;
+        uniformsForLine.u_centerx = vec4.fromValues(centerx, 0, 0, 0);
+        uniformsForLine.u_heightCut = 1 - letterParams[ii].linetop * 2;
+        setBuffersAndAttributes(gl, attribSetters, lineBufferInfo);
+        setUniforms(uniformSetters, uniformsForLine);
+        gl.lineWidth(1.0);
+        gl.drawElements(gl.LINES, 2, gl.UNSIGNED_SHORT, 0);
+      }
+    }
 
     requestAnimationFrame(drawScene);
   }

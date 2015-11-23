@@ -2,21 +2,66 @@
 <html>
 	<head>
 		<!--<meta charset="utf-8">-->
-		<title>a5</title>
+		<title>Happy Holiday!</title>
 		<style>
 			body { margin: 0; }
 			canvas { width: 100%; height: 100%; color: #000}
 			canvas.hidden {width: 100%; height: 100%; display: none}
+			p {font-size: 15px}
 		</style>
 		
 		<script src="resources/webgl-utils.js"></script>
 		<script src="resources/gl-matrix.js"></script>
 		<script src="resources/chroma.js"></script>
 		<script src="resources/Stats.js"></script>
+		<script src="resources/howler.js"></script>
 	</head>
 	<body>
 		<canvas id="webgl"></canvas>
-		<canvas id="getPixel" class="hidden"></canvas>
 		<script data-main="js/a5" type="text/javascript" src="resources/require.js"></script>
+		<h2>Instruction</h2>
+		<ol>
+			<li>Just type the key board and the text will be showed on the canvas above!</li>
+			<li>Click the letter will make it spin!</li>
+			<li>When more than 14 characters are entered, the earliest entered character will be removed. </li>
+			<li>ESC will clear all the text on the canvas and Backspace will remove the last character you entered.</li>
+		</ol>
+		<h2>Documentation</h2>
+		<p> The graphic part of this assignment was all done with WebGL without any high level graphic library. Howler.js was used for the implement of sound effect. </p>
+		<h3>Data Structure</h3>
+		<p>
+			A queue (implemented by array) was used as the Data Structure to store the parameters of every letter board. The parameters include the variables shown below.
+		</p>
+		<ol>
+			<li>Position: height was generated randomly and the horizontal position was calculated from the numbers of letter in the array.</li>
+			<li>Letter Texture: the letter texture reference that will be used to render the letter.</li>
+			<li>Rotation Matrix: the rotation matrix will be used to transform the letter board</li>
+			<li>Movement Parameters: include time, acceleration and speed. All these variables are combined together to calculate the movemnt of clicked letter board.</li>
+		</ol>
+		<h3>Transform Boards of Letters</h3>
+		<ol>
+			<li>The rotation matrix was caculated according to the time variable of the letter board.</li>
+			<li>All the boards are rotated at the origin according to their rotation matrixs in the queue.</li>
+			<li>The letter textures of boards were passed into fragment sharder and the pixels within the letter were culled from the board.</li> 
+			<li>The position of boards were passed into the shader and the transformed letter board was moved to the position taken in the vertex shader.</li>
+		</ol>
+		<h3>Identify and Process Clicked Letter Board</h3>
+		<ol>
+			<li>Read the clicked pixel in the canvas and if the pixel is rendered in this frame, it should be on the letter board.</li>
+			<li>The distance of the pixel to every letter board was calculated and compared, the closet letter board must be the clicked letter board</li>
+			<li>If the clicked letter board is not spinning, the speed and acceleration of the letter board was calculated according the distance of the clikced point to the center. The local time of letter board was also set to zero</li>
+			<li>Every frame the rotation matrix of spinning letter board was updated according to the speed and acceleration in the parameters queue.</li>
+			<li>When the spin finished, all the variables involved in the spinning(time, speed, acceleration) were reset to zero.</li>
+		</ol>
+		<h3>"Strings" connected to letter board</h3>
+		<ol>
+			<li>The "strings" with length from the top to the bottom of canvas were drew in the origin</li>
+			<li>The full-length "strings" were moved to the position of corresponding letter board's center</li>
+			<li>The position of top of letter board was passed into the vertex shader and the vertices below the top of letter board would be culled and in the canvas the "strings" would be connected to the top of letter board.</li>
+		</ol>
+		<h3>Sound effect</h3>
+		<p>Simply import howler.js and play the sound when typed or clicked.</p>
+		<h3>Leveraging code from the internet</h3>
+		<p>No code from the Internet were used in this assignment.</p> 
 	</body>
 </html>

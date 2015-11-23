@@ -12,6 +12,7 @@ uniform vec4 u_specular;
 uniform float u_shininess;
 uniform float u_specularFactor;
 uniform vec4 u_ambient;
+uniform sampler2D u_letterMod;
 
 vec4 lit(float l ,float h, float m) {
   return vec4(1.0,
@@ -23,14 +24,18 @@ vec4 lit(float l ,float h, float m) {
 void main() {
   // we aren't doing anything with texture coordinates, but can use them
   // as part of rendering
-  
+  vec4 letterPix = texture2D(u_letterMod, v_texCoord);
+  vec4 renderingColor = u_colorMult;
+  // if (letterPix.x > 0.5 && letterPix.y > 0.5 && letterPix.z > 0.5) {
+  //   discard;
+  // }
   vec3 a_normal = normalize(v_normal);
   vec3 surfaceToLight = normalize(v_surfaceToLight);
   vec3 surfaceToView = normalize(v_surfaceToView);
   vec3 halfVector = normalize(surfaceToLight + surfaceToView);
   vec4 litR = lit(dot(a_normal, surfaceToLight),
                     dot(a_normal, halfVector), u_shininess);
-  vec4 outColor = vec4((u_lightColor * (litR.y * u_colorMult +
+  vec4 outColor = vec4((u_lightColor * (litR.y * renderingColor +
                                         u_specular * litR.z * u_specularFactor)).rgb,
                         1.0);
 
@@ -39,4 +44,7 @@ void main() {
   
   // the actual computed color
   gl_FragColor = outColor + u_ambient;
+  if (letterPix.x < 0.5 && letterPix.y < 0.5 && letterPix.z < 0.5) {
+   gl_FragColor = vec4(1.0, 1.0, 1.0, 1.0);
+  }
 }

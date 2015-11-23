@@ -13,6 +13,9 @@
     },
     "chroma-js/chroma-js.d.ts": {
       "commit": "66f88ec51858bb21bc375fa91a963c04bc09401e"
+    },
+    "howlerjs/howler.d.ts": {
+      "commit": "fa04c80f4a889613b96cb4f283848c61a9f64233"
     }
   }
 }
